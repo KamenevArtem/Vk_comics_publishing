@@ -7,7 +7,14 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 
-def get_random_comic_information():
+def raise_error(function):
+    try:
+        function
+    except KeyError:
+        raise
+
+
+def get_random_comic_description():
     current_comic_url = "https://xkcd.com/info.0.json"
     current_comic_response = requests.get(current_comic_url, verify=certifi.where())
     current_comic_response.raise_for_status()
@@ -18,16 +25,15 @@ def get_random_comic_information():
     url = url_template.format(random_comic_number)
     response = requests.get(url)
     response.raise_for_status()
-    response = response.json()
-    comics_url = response['img']
-    author_comment = response['alt']
-    return comics_url, author_comment
+    comic_description = response.json()
+
+    return comic_description
 
 
-def saving_img(link, im_path, params=None):
+def save_img(link, img_path, params=None):
     response = requests.get(link, params)
     response.raise_for_status()
-    with open(im_path, "wb") as saved_img:
+    with open(img_path, "wb") as saved_img:
         saved_img.write(response.content)
 
 
@@ -40,7 +46,6 @@ def get_upload_url(access_token, group_id):
     upload_server_url = "https://api.vk.com/method/photos.getWallUploadServer"
     response = requests.get(upload_server_url, params)
     response.raise_for_status()
-    r = response.json()
     try:
         api_response = response.json()
         api_response = api_response["response"]
@@ -61,8 +66,8 @@ def upload_comic_to_server(upload_url):
            "file": image_to_send,
         }
         posting_response = requests.post(upload_url, files=files)
-        posting_response.raise_for_status()
-        posting_response = posting_response.json()
+    posting_response.raise_for_status()
+    posting_response = posting_response.json()
     return posting_response
     
     
@@ -99,23 +104,22 @@ def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
 
 
 def main():
+    script_path = pathlib.Path.cwd()
+    img_name = f"0.png"
+    file_path = Path(script_path).joinpath(img_name)
     try:
         load_dotenv()
         access_token = os.environ["VK_ACCESS_TOKEN"]
         vk_group_id = os.environ["VK_GROUP_ID"]
-        comics_url, author_comment = get_random_comic_information()
-        script_path = pathlib.Path.cwd()
-        img_name = f"0.png"
-        file_path = Path(script_path).joinpath(img_name)
-        saving_img(comics_url, file_path)
+        comic_description = get_random_comic_description()
+        comic_url = comic_description['img']
+        author_comment = comic_description['alt']
+        save_img(comic_url, file_path)
         upload_url = get_upload_url(access_token, vk_group_id)
         posting_response = upload_comic_to_server(upload_url)
         owner_id, media_id = save_photo_to_album(access_token, vk_group_id, posting_response)
         post_comic_to_wall(access_token, vk_group_id, author_comment, owner_id, media_id)
     finally:
-        script_path = pathlib.Path.cwd()
-        img_name = f"0.png"
-        file_path = Path(script_path).joinpath(img_name)
         os.remove(file_path)
 
 
