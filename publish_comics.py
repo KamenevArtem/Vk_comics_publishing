@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 
-def raise_error(function):
-    try:
-        function
-    except KeyError:
-        raise
+def raise_vk_error(api_response):
+    error_response = api_response["error"]
+    error_code = error_response["error_code"]
+    error_msg = error_response["error_msg"]
+    print(f"Код ошибки: {error_code}. Описание ошибки: {error_msg}")
 
 
 def get_random_comic_description():
@@ -26,7 +26,6 @@ def get_random_comic_description():
     response = requests.get(url)
     response.raise_for_status()
     comic_description = response.json()
-
     return comic_description
 
 
@@ -46,18 +45,14 @@ def get_upload_url(access_token, group_id):
     upload_server_url = "https://api.vk.com/method/photos.getWallUploadServer"
     response = requests.get(upload_server_url, params)
     response.raise_for_status()
+    api_response = response.json()
     try:
-        api_response = response.json()
         api_response = api_response["response"]
         upload_url = api_response['upload_url']
         return upload_url
     except KeyError:
-        api_response = response.json()
-        api_response = api_response["error"]
-        error_code = api_response["error_code"]
-        error_msg = api_response["error_msg"]
-        print(f"Код ошибки: {error_code}. Описание ошибки: {error_msg}")
-        raise
+        raise_vk_error(api_response)
+        pass
 
 
 def upload_comic_to_server(upload_url):
@@ -69,24 +64,29 @@ def upload_comic_to_server(upload_url):
     posting_response.raise_for_status()
     posting_response = posting_response.json()
     return posting_response
-    
-    
-def save_photo_to_album(access_token, group_id, posting_response):
+
+
+def save_photo_to_album(access_token, group_id, comic_params, comic_server, comic_hash):
     save_photo_url = 'https://api.vk.com/method/photos.saveWallPhoto'
     save_request_params = {
         'access_token': access_token,
         'group_id': group_id,
         'v': '5.131',
-        'photo': posting_response['photo'],
-        'server': posting_response['server'],
-        'hash': posting_response['hash'],
+        'photo': comic_params,
+        'server': comic_server,
+        'hash': comic_hash,
     }
     saving_response = requests.post(save_photo_url, data = save_request_params)
     saving_response.raise_for_status()
-    saving_response = saving_response.json()['response']
-    owner_id = saving_response[0]['owner_id']
-    media_id = saving_response[0]['id']
-    return owner_id, media_id
+    saving_response = saving_response.json()
+    try:
+        api_reponse = saving_response["response"]
+        owner_id = api_reponse[0]['owner_id']
+        media_id = api_reponse[0]['id']
+        return owner_id, media_id
+    except KeyError:
+        raise_vk_error(saving_response)
+        raise
 
 
 def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
@@ -101,6 +101,13 @@ def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
     }
     posting_response = requests.post(vk_wall_post_url, data = wall_post_params)
     posting_response.raise_for_status()
+    posting_response = posting_response.json()
+    try:
+        post_id = posting_response["response"]
+        print(f"Комикс был опубликован на стене сообщества, номер публикации: {post_id['post_id']}")
+    except KeyError:
+        raise_vk_error(posting_response)
+        raise
 
 
 def main():
@@ -117,7 +124,11 @@ def main():
         save_img(comic_url, file_path)
         upload_url = get_upload_url(access_token, vk_group_id)
         posting_response = upload_comic_to_server(upload_url)
-        owner_id, media_id = save_photo_to_album(access_token, vk_group_id, posting_response)
+        comic_photo = posting_response['photo']
+        comic_server = posting_response['server']
+        comic_hash =  posting_response['hash']
+        owner_id, media_id = save_photo_to_album(access_token, vk_group_id, 
+                                                comic_photo, comic_server, comic_hash)
         post_comic_to_wall(access_token, vk_group_id, author_comment, owner_id, media_id)
     finally:
         os.remove(file_path)
