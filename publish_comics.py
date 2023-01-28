@@ -5,16 +5,17 @@ import random
 import certifi
 from dotenv import load_dotenv
 from pathlib import Path
-
+from requests import HTTPError
+        
 
 def get_vk_error_description(api_response):
     if "error" in api_response:
         error_response = api_response["error"]
         error_code = error_response["error_code"]
         error_msg = error_response["error_msg"]
-        return error_code, error_msg
+        raise HTTPError(error_code, error_msg)
     else:
-        return None, None
+        return
 
 
 def get_random_comic_description():
@@ -49,6 +50,7 @@ def get_upload_url(access_token, group_id):
     response = requests.get(upload_server_url, params)
     response.raise_for_status()
     api_response = response.json()
+    get_vk_error_description(api_response)
     return api_response
 
 
@@ -76,6 +78,7 @@ def save_photo_to_album(access_token, group_id, comic_params, comic_server, comi
     saving_response = requests.post(save_photo_url, data = save_request_params)
     saving_response.raise_for_status()
     saving_response = saving_response.json()
+    get_vk_error_description(saving_response)
     return saving_response
 
 
@@ -92,6 +95,7 @@ def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
     posting_response = requests.post(vk_wall_post_url, data = wall_post_params)
     posting_response.raise_for_status()
     posting_response = posting_response.json()
+    get_vk_error_description(posting_response)
     return posting_response
 
 
