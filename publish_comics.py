@@ -107,10 +107,10 @@ def main():
         comic_url = comic_description['img']
         author_comment = comic_description['alt']
         save_img(comic_url, file_path)
-        apload_url_response = get_upload_url(access_token, vk_group_id)
-        error_code, error_msg = get_vk_error_description(apload_url_response)
-        apload_url_response = apload_url_response["response"]
-        upload_url = apload_url_response['upload_url']
+        upload_url_response = get_upload_url(access_token, vk_group_id)
+        error_code, error_msg = get_vk_error_description(upload_url_response)
+        upload_url_response = upload_url_response["response"]
+        upload_url = upload_url_response['upload_url']
         posting_response = upload_comic_to_server(upload_url)
         comic_photo = posting_response['photo']
         comic_server = posting_response['server']
@@ -118,9 +118,9 @@ def main():
         saving_response = save_photo_to_album(access_token, vk_group_id, 
                                                 comic_photo, comic_server, comic_hash)
         error_code, error_msg = get_vk_error_description(saving_response)
-        api_reponse = saving_response["response"]
-        owner_id = api_reponse[0]['owner_id']
-        media_id = api_reponse[0]['id']
+        api_response = saving_response["response"]
+        owner_id = api_response[0]['owner_id']
+        media_id = api_response[0]['id']
         posting_response = post_comic_to_wall(access_token, vk_group_id, author_comment, owner_id, media_id)
         error_code, error_msg = get_vk_error_description(posting_response)
         posting_response = posting_response["response"]
