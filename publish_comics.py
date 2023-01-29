@@ -30,7 +30,9 @@ def get_random_comic_description():
     response = requests.get(url)
     response.raise_for_status()
     comic_description = response.json()
-    return comic_description
+    comic_url = comic_description['img']
+    author_comment = comic_description['alt']
+    return comic_url, author_comment
 
 
 def save_img(link, img_path, params=None):
@@ -51,7 +53,7 @@ def get_upload_url(access_token, group_id):
     response.raise_for_status()
     api_response = response.json()
     get_vk_error_description(api_response)
-    return api_response
+    return api_response["response"]["upload_url"]
 
 
 def upload_comic_to_server(upload_url):
@@ -62,7 +64,10 @@ def upload_comic_to_server(upload_url):
         posting_response = requests.post(upload_url, files=files)
     posting_response.raise_for_status()
     posting_response = posting_response.json()
-    return posting_response
+    comic_photo = posting_response['photo']
+    comic_server = posting_response['server']
+    comic_hash =  posting_response['hash']
+    return comic_photo, comic_server, comic_hash
 
 
 def save_photo_to_album(access_token, group_id, comic_params, comic_server, comic_hash):
@@ -79,7 +84,9 @@ def save_photo_to_album(access_token, group_id, comic_params, comic_server, comi
     saving_response.raise_for_status()
     saving_response = saving_response.json()
     get_vk_error_description(saving_response)
-    return saving_response
+    owner_id = saving_response['response'][0]['owner_id']
+    media_id = saving_response['response'][0]['id']
+    return owner_id, media_id
 
 
 def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
@@ -100,36 +107,20 @@ def post_comic_to_wall(access_token, group_id, comment, owner_id, media_id):
 
 
 def main():
-    script_path = pathlib.Path.cwd()
-    img_name = f"0.png"
-    file_path = Path(script_path).joinpath(img_name)
     try:
+        script_path = pathlib.Path.cwd()
+        img_name = f"0.png"
+        file_path = Path(script_path).joinpath(img_name)
         load_dotenv()
         access_token = os.environ["VK_ACCESS_TOKEN"]
         vk_group_id = os.environ["VK_GROUP_ID"]
-        comic_description = get_random_comic_description()
-        comic_url = comic_description['img']
-        author_comment = comic_description['alt']
+        comic_url, author_comment = get_random_comic_description()
         save_img(comic_url, file_path)
-        upload_url_response = get_upload_url(access_token, vk_group_id)
-        error_code, error_msg = get_vk_error_description(upload_url_response)
-        upload_url_response = upload_url_response["response"]
-        upload_url = upload_url_response['upload_url']
-        posting_response = upload_comic_to_server(upload_url)
-        comic_photo = posting_response['photo']
-        comic_server = posting_response['server']
-        comic_hash =  posting_response['hash']
-        saving_response = save_photo_to_album(access_token, vk_group_id, 
-                                                comic_photo, comic_server, comic_hash)
-        error_code, error_msg = get_vk_error_description(saving_response)
-        api_response = saving_response["response"]
-        owner_id = api_response[0]['owner_id']
-        media_id = api_response[0]['id']
-        posting_response = post_comic_to_wall(access_token, vk_group_id, author_comment, owner_id, media_id)
-        error_code, error_msg = get_vk_error_description(posting_response)
-        posting_response = posting_response["response"]
-    except KeyError:
-        print(f"Ошибка номер: {error_code}, описание: {error_msg}")
+        upload_url = get_upload_url(access_token, vk_group_id)
+        comic_photo, comic_server, comic_hash = upload_comic_to_server(upload_url)
+        owner_id, media_id = save_photo_to_album(access_token, vk_group_id,
+                                              comic_photo, comic_server, comic_hash)
+        post_comic_to_wall(access_token, vk_group_id, author_comment, owner_id, media_id)
     finally:
         os.remove(file_path)
 
